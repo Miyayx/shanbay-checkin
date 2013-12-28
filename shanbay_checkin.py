@@ -54,11 +54,12 @@ class Shaybay:
         request = urllib2.Request(url)
         return self.opener.open(request).read()
 
-    def put(self, url, params):
-        url_data = urllib.urlencode(params)
-        request = urllib2.Request(url)
+    def put(self, url, payload):
+        #url_data = urllib.urlencode(params)
+        #request = urllib2.Request(url, json.dumps(payload, sort_keys=True, skipkeys=True))
+        request = urllib2.Request(url, data = json.dumps(payload).replace(" ",""),headers={'Content-type':'application/json'} )
         request.get_method = lambda:'PUT'
-        res = self.opener.open(request,url_data)
+        res = self.opener.open(request)
     
     def login(self):
         loginurl = self.HOST+'/accounts/login/'
@@ -75,23 +76,27 @@ class Shaybay:
         print "Login Success"
 
     def study(self):
-        url = self.HOST + '/api/v1/bdc/review/sync/'
+        #url = self.HOST + '/api/v1/bdc/review/sync/'
+        url = self.HOST + '/api/v1/bdc/review/'
         
-        params = {
-           "len": 28,
-           "update_type":"fresh",
-#           "index":0,
-           "_":timestamp()
-        }
+        while True:
+            params = {
+               #"len": 7,
+               #"update_type":"fresh",
+#               "index":0,
+               #"_":timestamp()
+            }
 
-        res = self.get(url, params)
-        ids = self.get_wordid(res)
-        #rand_pause()
-        params2 = {}
-        for i in ids:
-            params2[i] = 2
-        res = self.put(url, params2)
-        print res
+            res = self.get(url, params)
+            ids = self.get_wordid(res)
+            if len(ids) == 0:
+                break
+            #rand_pause()
+            params2 = {}
+            for i in ids[0:7]:
+                params2[i] = 2
+            res = self.put(url, params2)
+            print res
 
     def get_wordid(self, json):
         json = eval(json)
