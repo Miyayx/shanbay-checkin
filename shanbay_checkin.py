@@ -7,6 +7,8 @@ import cookielib
 import json
 import ConfigParser
 
+from bs4 import BeautifulSoup
+
 from utils import *
 
 null = "null"
@@ -18,7 +20,7 @@ class Shaybay:
 
     def __init__(self, config_file):
         self.cookiejar = cookielib.CookieJar()
-        self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookiejar),urllib2.HTTPHandler(debuglevel = 1))
+        self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookiejar),urllib2.HTTPHandler(debuglevel = 0))
         self.opener.addheaders = [('User-agent','Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1)')]
         self.opener.addheaders = [('content-type','application/json')]
         self.opener.addheaders.append(('Connection','keep-alive'))
@@ -45,7 +47,7 @@ class Shaybay:
         res = self.opener.open(request,url_data)
         return res
 
-    def get(self, url, params):
+    def get(self, url, params = {}):
         url += "?"
         if len(params) > 0:
             for k,v in params.items():
@@ -75,7 +77,7 @@ class Shaybay:
         self.post(loginurl, params)
         print "Login Success"
 
-    def study(self):
+    def word_study(self):
         #url = self.HOST + '/api/v1/bdc/review/sync/'
         url = self.HOST + '/api/v1/bdc/review/'
         
@@ -91,12 +93,11 @@ class Shaybay:
             ids = self.get_wordid(res)
             if len(ids) == 0:
                 break
-            #rand_pause()
+            rand_pause()
             params2 = {}
             for i in ids[0:7]:
                 params2[i] = 2
             res = self.put(url, params2)
-            print res
 
     def get_wordid(self, json):
         json = eval(json)
@@ -106,6 +107,72 @@ class Shaybay:
             ids.append(r["id"])
         
         return ids
+
+    def reading_study(self):
+        """
+        step 1: open news page
+        step 2: choose the first news
+        step 3: open news page, turn page every 20~25s
+        step 4: finish reading button
+        step 5: choose the second news....
+        """
+        url = self.HOST + '/api/v1/read/'
+        news_ids = self.get_news_id(self.HOST+'/read/news/')
+        for n in news_ids:
+            total_time = 0
+            res = self.get(url+'article_content/'+n,{"_":timestamp()})
+            data = eval(res)["data"]
+            last_read_sentence = data["last_read_sentence"]
+            page = data["content"]
+
+            soup = BeautifulSoup(page)
+
+            # if there is image at the first page
+            if soup.find("img"):
+                self.put(url+"article/user/"+n, {"operation":"record"})
+                
+            sents = soup.findAll("sent")
+            print sents
+            print len(sents)
+
+            for s in sents[::4]:
+                span = s.find(class_="paragraph").span
+                if not span:
+                    continue
+                sentence_id = span['id']
+                used_time = rand_pause() 
+                total_time += used_time
+                
+                params = {
+                "operation":"record",
+                "sentence_id":sentence_id,
+                "used_time":used_time
+                }
+
+                self.put(url+"article/user/"+n, params)
+
+            # finish
+            params = {
+            "comment":"",
+            "used_time":total_time,
+            "operation":"finish"
+            }
+            self.put(url+"article/user/"+n)
+
+    def get_news_id(self, url):
+        """
+        Get news id(only the newest two)
+        """
+        news = []
+        page = self.get(url)
+        soup = BeautifulSoup(page)
+        articles = soup.findAll(class_="article")[0:2]
+        for a in articles:
+            n = a.find(class_="title").a["href"]
+            print "news -->",n
+            news.append(n.strip('/').split('/')[-1])
+
+        return news
 
     def checkin(self):
         url = self.HOST+'/api/v1/checkin/?for_web=true'
@@ -129,13 +196,14 @@ class Shaybay:
         else:
             print "已经打过卡了"
 
-    def word_checkin(self):
+    def today_checkin(self):
         self.open_home()
         self.login()
-        self.study()
+        self.word_study()
+        #self.reading_study()
         self.checkin()
         
 if __name__ == "__main__":
     sb = Shaybay("info.mine.cfg")
-    sb.word_checkin()
+    sb.today_checkin()
 

@@ -1,9 +1,10 @@
 
 def rand_pause():
     import random
-    d = random.randint(60, 300);
+    d = random.randint(20, 100);
     import time
     time.sleep(d)
+    return d
 
 def timestamp():
     import time
